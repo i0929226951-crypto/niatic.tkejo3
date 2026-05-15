@@ -187,15 +187,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 /* 側欄收合 */
 #sidebar{transition:width .25s ease}
 #sidebar.collapsed{width:0!important;overflow:hidden;border:none}
-#toggle-btn{padding:4px 10px;border:1px solid rgba(255,255,255,.4);border-radius:6px;background:rgba(255,255,255,.15);color:#fff;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0;line-height:1}
-#toggle-btn:hover{background:rgba(255,255,255,.3)}
-@media(max-width:600px){#sidebar{width:0!important;overflow:hidden;border:none}}
+#toggle-btn{position:absolute;top:50%;left:258px;transform:translateY(-50%);z-index:1100;width:20px;height:48px;background:#1b4f72;border:none;border-radius:0 8px 8px 0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;box-shadow:2px 0 6px rgba(0,0,0,.25);transition:left .25s ease}
+#toggle-btn.collapsed{left:0}
+#toggle-btn:hover{background:#154360}
 </style>
 </head>
 <body>
 <div id="topbar">
   <h1>🗺 車型軌跡路線圖</h1>
-  <button id="toggle-btn" onclick="toggleSidebar()" title="收合側欄">☰</button>
   <label class="file-lbl" for="file-input">📂 匯入</label>
   <button class="btn btn-g" onclick="loadSample()">範例</button>
   <button class="btn btn-r" id="btn-clear" onclick="clearAll()" style="display:none">清除</button>
@@ -224,6 +223,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 </div>
 
 <div id="main">
+  <button id="toggle-btn" onclick="toggleSidebar()" title="收合側欄">◀</button>
   <div id="sidebar">
     <div id="tabs">
       <div class="tab on" onclick="showTab('map')">🗺地圖</div>
@@ -1365,16 +1365,12 @@ function toggleSidebar(){
   const sb=document.getElementById('sidebar');
   const btn=document.getElementById('toggle-btn');
   const collapsed=sb.classList.toggle('collapsed');
+  btn.classList.toggle('collapsed',collapsed);
+  btn.textContent=collapsed?'▶':'◀';
   btn.title=collapsed?'展開側欄':'收合側欄';
+  // 讓地圖重新計算尺寸
   setTimeout(()=>{if(M)M.invalidateSize();},280);
 }
-
-// 手機預設收合
-document.addEventListener('DOMContentLoaded',()=>{
-  if(window.innerWidth<=600){
-    document.getElementById('sidebar').classList.add('collapsed');
-  }
-});
 </script>
 </body>
 </html>
