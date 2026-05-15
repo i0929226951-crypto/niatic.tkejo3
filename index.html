@@ -46,7 +46,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .hl-lat{background:#fff9c4!important}.hl-lng{background:#c8f5d8!important}
 .hl-vid{background:#ffe0cc!important}.hl-date{background:#d8f0ff!important}.hl-time{background:#e8d8ff!important}
 /* main */
-#main{display:flex;flex:1;overflow:hidden}
+#main{display:flex;flex:1;overflow:hidden;position:relative}
 #sidebar{width:258px;flex-shrink:0;background:#fff;border-right:1px solid #e0e4ea;display:flex;flex-direction:column;overflow:hidden}
 #tabs{display:flex;border-bottom:1px solid #e0e4ea;flex-shrink:0}
 .tab{flex:1;padding:7px 1px;text-align:center;font-size:10px;font-weight:700;color:#888;cursor:pointer;border-bottom:2px solid transparent;transition:.15s;white-space:nowrap}
@@ -184,6 +184,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .poi-pin-inner{transform:rotate(45deg);color:#fff;font-size:14px;font-weight:900;line-height:1}
 .poi-pin-label{font-size:10px;font-weight:700;background:rgba(255,255,255,.92);border-radius:4px;padding:1px 5px;margin-top:2px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.2);max-width:120px;overflow:hidden;text-overflow:ellipsis}
 #file-input{display:none}
+/* 側欄收合 */
+#sidebar{transition:width .25s ease}
+#sidebar.collapsed{width:0!important;overflow:hidden;border:none}
+#toggle-btn{position:absolute;top:50%;left:258px;transform:translateY(-50%);z-index:1100;width:20px;height:48px;background:#1b4f72;border:none;border-radius:0 8px 8px 0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;box-shadow:2px 0 6px rgba(0,0,0,.25);transition:left .25s ease}
+#toggle-btn.collapsed{left:0}
+#toggle-btn:hover{background:#154360}
 </style>
 </head>
 <body>
@@ -217,6 +223,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 </div>
 
 <div id="main">
+  <button id="toggle-btn" onclick="toggleSidebar()" title="收合側欄">◀</button>
   <div id="sidebar">
     <div id="tabs">
       <div class="tab on" onclick="showTab('map')">🗺地圖</div>
@@ -1353,6 +1360,17 @@ function pTs(v){
 function escA(s){return s.replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 function escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function escJS(s){return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const btn=document.getElementById('toggle-btn');
+  const collapsed=sb.classList.toggle('collapsed');
+  btn.classList.toggle('collapsed',collapsed);
+  btn.textContent=collapsed?'▶':'◀';
+  btn.title=collapsed?'展開側欄':'收合側欄';
+  // 讓地圖重新計算尺寸
+  setTimeout(()=>{if(M)M.invalidateSize();},280);
+}
 </script>
 </body>
 </html>
