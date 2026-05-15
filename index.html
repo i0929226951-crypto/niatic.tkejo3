@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>車型軌跡路線圖</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;display:flex;flex-direction:column}
+#topbar{display:flex;align-items:center;gap:7px;padding:6px 12px;background:#1b4f72;flex-shrink:0;flex-wrap:wrap;z-index:1000}
+#topbar h1{font-size:14px;font-weight:700;color:#fff;white-space:nowrap}
+.sep{flex:1}
+.btn{padding:4px 11px;border:1px solid rgba(255,255,255,.4);border-radius:6px;background:rgba(255,255,255,.12);color:#fff;cursor:pointer;font-size:12px;white-space:nowrap;transition:.15s}
+.btn:hover{background:rgba(255,255,255,.25)}
+.btn-g{background:#1a9e60;border-color:#1a9e60}.btn-g:hover{background:#157a4a}
+.btn-r{background:#c0392b;border-color:#c0392b}
+.btn-o{background:#e67e22;border-color:#e67e22}.btn-o:hover{background:#ca6f1e}
+.file-lbl{display:flex;align-items:center;gap:5px;padding:4px 11px;border:1.5px dashed rgba(255,255,255,.5);border-radius:6px;cursor:pointer;color:#fff;font-size:12px}
+.file-lbl:hover{border-color:#fff;background:rgba(255,255,255,.1)}
+#file-name{font-size:11px;color:rgba(255,255,255,.75)}
+#status{display:none;padding:5px 14px;font-size:12px;border-bottom:1px solid;flex-shrink:0}
+#status.ok{background:#e6f4ea;border-color:#a8d5b2;color:#1e7e34}
+#status.err{background:#fce8e6;border-color:#f5c5c2;color:#c5221f}
+#status.info{background:#e8f0fe;border-color:#c5d5f5;color:#1557b0}
+/* mapping panel */
+#mapping-panel{display:none;flex-direction:column;background:#f0f4ff;border-bottom:1px solid #d0daf5;flex-shrink:0;max-height:48vh;overflow:hidden}
+.mp-head{padding:7px 14px 0;flex-shrink:0}
+.mp-head h2{font-size:13px;font-weight:600;color:#1a5276;margin-bottom:6px}
+.col-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:7px}
+.col-cell label{font-size:11px;color:#555;font-weight:600;display:block;margin-bottom:2px}
+.col-cell select{width:100%;padding:4px 5px;border:1.5px solid #ddd;border-radius:5px;font-size:12px;background:#fff}
+.col-hint{font-size:10px;margin-top:2px;min-height:12px}
+.col-hint.ok{color:#1e7e34}.col-hint.warn{color:#b45309}
+.mp-acts{display:flex;gap:7px;align-items:center;padding:6px 14px;border-top:1px solid #d8e2f8;background:#eaeffc;flex-shrink:0;flex-wrap:wrap}
+#preview-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column;border-top:1px solid #d0daf5}
+.pv-head{display:flex;align-items:center;justify-content:space-between;padding:3px 14px;background:#e4ebfb;font-size:12px;color:#3d5a9e;font-weight:600;flex-shrink:0}
+#pv-scroll{overflow:auto;flex:1}
+#pv-scroll table{border-collapse:collapse;font-size:12px;width:100%;white-space:nowrap}
+#pv-scroll thead th{background:#dce6f8;padding:3px 8px;text-align:left;border-right:1px solid #c8d6f0;border-bottom:1px solid #c8d6f0;font-weight:600;color:#2d4a8a;position:sticky;top:0;cursor:pointer}
+#pv-scroll thead th:hover{background:#ccd8f0}
+#pv-scroll tbody td{padding:2px 8px;border-right:1px solid #eef2fb;border-bottom:1px solid #f0f4ff}
+#pv-scroll tbody tr:hover td{background:#f0f5ff}
+#pv-scroll tbody tr:nth-child(even) td{background:#f7f9ff}
+.hl-lat{background:#fff9c4!important}.hl-lng{background:#c8f5d8!important}
+.hl-vid{background:#ffe0cc!important}.hl-date{background:#d8f0ff!important}.hl-time{background:#e8d8ff!important}
+/* main */
+#main{display:flex;flex:1;overflow:hidden}
+#sidebar{width:258px;flex-shrink:0;background:#fff;border-right:1px solid #e0e4ea;display:flex;flex-direction:column;overflow:hidden}
+#tabs{display:flex;border-bottom:1px solid #e0e4ea;flex-shrink:0}
+.tab{flex:1;padding:7px 1px;text-align:center;font-size:10px;font-weight:700;color:#888;cursor:pointer;border-bottom:2px solid transparent;transition:.15s;white-space:nowrap}
+.tab.on{color:#1b4f72;border-bottom-color:#1b4f72}
+.tab-body{display:none;overflow-y:auto;flex:1;padding:10px}
+.tab-body.on{display:block}
+.sec{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.07em;margin:0 0 6px}
+.hr{border:none;border-top:1px solid #f0f2f5;margin:9px 0}
+#map{flex:1;z-index:1}
+/* layer btns */
+.lyr-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:9px}
+.lbtn{padding:3px 8px;border:1px solid #ddd;border-radius:5px;font-size:11px;cursor:pointer;background:#fff;transition:.15s}
+.lbtn:hover{border-color:#1b4f72;color:#1b4f72}
+.lbtn.on{background:#1b4f72;color:#fff;border-color:#1b4f72}
+/* opt rows */
+.opt{display:flex;align-items:center;justify-content:space-between;padding:3px 0;font-size:12px;gap:8px}
+.opt .lbl{color:#444;flex:1}
+.tog{position:relative;width:30px;height:16px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0;position:absolute}
+.ttr{position:absolute;inset:0;border-radius:8px;background:#ccc;transition:.2s;cursor:pointer}
+.tog input:checked+.ttr{background:#1b4f72}
+.tth{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:.2s;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.tog input:checked~.tth{left:16px}
+.sel{font-size:11px;padding:2px 5px;border:1px solid #ddd;border-radius:5px;background:#fff;cursor:pointer}
+/* vehicle list */
+.vrow{display:flex;align-items:center;gap:6px;padding:4px 5px;border-radius:6px;cursor:pointer;user-select:none}
+.vrow:hover{background:#f4f6f9}
+.vdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.vname{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vbadge{font-size:10px;color:#888;background:#f0f2f5;padding:1px 5px;border-radius:9px}
+.vabadge{font-size:10px;color:#fff;background:#e8431a;padding:1px 5px;border-radius:9px}
+/* filter */
+.filter-box{border-radius:8px;padding:9px;margin-bottom:9px}
+.filter-box.date-box{background:#f0f6ff;border:1px solid #d0e2ff}
+.filter-box.time-box{background:#f5f0ff;border:1px solid #d8c8ff}
+.fb-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.fb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.date-box .fb-title{color:#1a57c0}
+.time-box .fb-title{color:#5b21b6}
+.day-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px}
+.dbtn{padding:2px 7px;border:1px solid #bdd3ff;border-radius:4px;font-size:11px;cursor:pointer;background:#fff;user-select:none}
+.dbtn:hover{border-color:#1a57c0}
+.dbtn.on{background:#1b4f72;color:#fff;border-color:#1b4f72}
+.dbtn.anom{border-color:#e8431a}
+.dbtn.on.anom{background:#e8431a;border-color:#e8431a}
+.dbtn-sm{padding:1px 6px;font-size:10px;border:1px solid #ddd;border-radius:4px;cursor:pointer;background:#fff}
+.dbtn-sm:hover{background:#f0f2f5}
+.time-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px}
+.time-cell label{display:block;font-size:10px;font-weight:600;color:#6d3fc0;margin-bottom:2px}
+.time-cell input[type=time]{width:100%;padding:5px 6px;border:1.5px solid #c4a8f5;border-radius:6px;font-size:12px;font-weight:600;color:#3d1d8c;background:#fff}
+#time-hint{font-size:10px;color:#7c3aed;margin-top:2px}
+.filter-result{font-size:11px;color:#444;line-height:1.8;background:#f8f9fc;border-radius:6px;padding:7px 9px;margin-top:7px;display:none}
+/* anomaly */
+.athresh-box{background:#f8f9fc;border:1px solid #e8eaf0;border-radius:7px;padding:8px;margin-bottom:8px}
+.athresh-box h3{font-size:10px;font-weight:700;color:#666;text-transform:uppercase;margin-bottom:6px}
+.arow{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#444;margin-bottom:4px;gap:4px}
+.arow input[type=number]{width:52px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;text-align:right}
+.atype-filters{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.achip{padding:3px 9px;border-radius:18px;font-size:11px;cursor:pointer;border:1.5px solid;transition:.15s;user-select:none;font-weight:600}
+.achip.stop{border-color:#f59e0b;color:#b45309;background:#fffdf0}
+.achip.stop.on{background:#f59e0b;color:#fff}
+.achip.gap{border-color:#7c3aed;color:#5b21b6;background:#faf7ff}
+.achip.gap.on{background:#7c3aed;color:#fff}
+.achip.night{border-color:#0288d1;color:#0277bd;background:#f0f8ff}
+.achip.night.on{background:#0288d1;color:#fff}
+.achip.cc{border-color:#2ecc71;color:#1a7a44;background:#f0fff8}
+.achip.cc.on{background:#2ecc71;color:#fff}
+.alist{display:flex;flex-direction:column;gap:4px}
+.aitem{padding:6px 8px;border-radius:6px;border-left:3px solid;cursor:pointer;font-size:12px}
+.aitem:hover{opacity:.88}
+.aitem.stop{background:#fff8e1;border-color:#f59e0b}
+.aitem.gap{background:#f3f0ff;border-color:#7c3aed}
+.aitem.night{background:#e8f4fd;border-color:#0288d1}
+.aitem.cc{background:#f0fff8;border-color:#2ecc71}
+.atype-lbl{font-weight:700;font-size:10px;text-transform:uppercase;margin-bottom:1px}
+.aitem.stop .atype-lbl{color:#b45309}
+.aitem.gap .atype-lbl{color:#5b21b6}
+.aitem.night .atype-lbl{color:#0277bd}
+.aitem.cc .atype-lbl{color:#1a7a44}
+.avid{font-size:10px;color:#666}
+.adetail{color:#333;font-size:12px}
+.atime-s{font-size:10px;color:#888}
+#asum{font-size:11px;color:#555;margin-bottom:6px}
+#no-anom{text-align:center;padding:14px;color:#aaa;font-size:12px;display:none}
+/* hotspot */
+.hs-setting{background:#f8f9fc;border:1px solid #e8eaf0;border-radius:7px;padding:8px;margin-bottom:8px}
+.hs-row{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#444;margin-bottom:4px;gap:4px}
+.hs-row input[type=number]{width:58px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:11px;text-align:right}
+.hs-item{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:12px;border:1px solid #eee;margin-bottom:4px}
+.hs-item:hover{background:#f9f9f9}
+.hs-rank{width:18px;height:18px;border-radius:50%;background:#1b4f72;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.hs-info{flex:1;min-width:0}
+.hs-addr{font-size:11px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hs-stat{font-size:10px;color:#1b4f72;font-weight:600}
+.daily-stop-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+.daily-stop-table th{background:#f0f4ff;padding:4px 6px;text-align:left;border-bottom:1px solid #dce6f8;font-weight:600;color:#2d4a8a}
+.daily-stop-table td{padding:3px 6px;border-bottom:1px solid #f0f4ff;color:#333}
+.daily-stop-table tr:hover td{background:#f5f8ff}
+/* cur info */
+#curinfo{font-size:12px;line-height:1.8;color:#555}
+/* playbar */
+#playbar{display:none;flex-shrink:0;background:#fff;border-top:1px solid #e0e4ea;padding:6px 14px;flex-direction:column;gap:4px}
+.pbrow{display:flex;align-items:center;gap:8px}
+#pb-play{width:28px;height:28px;border-radius:50%;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#pb-play:hover{background:#f0f2f5}
+#pb-slider{flex:1;accent-color:#1b4f72;cursor:pointer}
+#pb-time{font-size:11px;color:#666;white-space:nowrap;min-width:145px;text-align:right}
+.spd{display:flex;align-items:center;gap:3px;font-size:11px;color:#666}
+#pb-prog{height:3px;background:#e0e4ea;border-radius:2px}
+#pb-fill{height:100%;background:#1b4f72;border-radius:2px;width:0%}
+/* markers */
+.wp-dot{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.9);line-height:1}
+.mk-start,.mk-end{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2.5px solid #fff;font-size:11px;line-height:1}
+.mk-mov{border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.45);border:2.5px solid #fff}
+/* POI 特殊關注點 */
+.poi-item{background:#fafafa;border:1px solid #e8eaf0;border-radius:7px;padding:7px 8px;margin-bottom:7px}
+.poi-head{display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.poi-star{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.poi-input{flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:5px;font-size:11px;min-width:0}
+.poi-input:focus{outline:none;border-color:#1b4f72}
+.poi-go{padding:3px 7px;border:1px solid #1b4f72;border-radius:5px;background:#1b4f72;color:#fff;cursor:pointer;font-size:12px;flex-shrink:0}
+.poi-go:hover{background:#154360}
+.poi-del{padding:3px 6px;border:1px solid #ddd;border-radius:5px;background:#fff;color:#888;cursor:pointer;font-size:11px;flex-shrink:0}
+.poi-del:hover{background:#fce8e6;border-color:#e74c3c;color:#e74c3c}
+.poi-label-row{margin-bottom:4px}
+.poi-label-input{width:100%;padding:3px 6px;border:1px solid #eee;border-radius:5px;font-size:11px;color:#555}
+.poi-label-input:focus{outline:none;border-color:#aaa}
+.poi-status{font-size:10px;min-height:14px;line-height:1.4}
+.poi-status.ok{color:#1e7e34}
+.poi-status.err{color:#c5221f}
+.poi-status.loading{color:#1557b0}
+/* POI 地圖 marker */
+.poi-marker-icon{display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.poi-pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.45);border:2.5px solid #fff}
+.poi-pin-inner{transform:rotate(45deg);color:#fff;font-size:14px;font-weight:900;line-height:1}
+.poi-pin-label{font-size:10px;font-weight:700;background:rgba(255,255,255,.92);border-radius:4px;padding:1px 5px;margin-top:2px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.2);max-width:120px;overflow:hidden;text-overflow:ellipsis}
+#file-input{display:none}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>🗺 車型軌跡路線圖</h1>
+  <label class="file-lbl" for="file-input">📂 匯入</label>
+  <button class="btn btn-g" onclick="loadSample()">範例</button>
+  <button class="btn btn-r" id="btn-clear" onclick="clearAll()" style="display:none">清除</button>
+  <div class="sep"></div>
+  <span id="file-name"></span>
+</div>
+<div id="status"></div>
+
+<div id="mapping-panel">
+  <div class="mp-head">
+    <h2>📋 欄位對應　<small style="font-weight:400;color:#666;font-size:11px">若日期時間同欄，系統自動拆分</small></h2>
+    <div class="col-grid" id="col-grid"></div>
+  </div>
+  <div class="mp-acts">
+    <button class="btn btn-g" onclick="applyMapping()">套用並繪圖</button>
+    <button class="btn" style="color:#333;border-color:#ddd;background:#fff" onclick="document.getElementById('mapping-panel').style.display='none'">取消</button>
+    <span style="font-size:11px;color:#666" id="col-note"></span>
+  </div>
+  <div id="preview-wrap">
+    <div class="pv-head">
+      <span id="pv-title">資料預覽</span>
+      <span style="font-weight:400;color:#5c7ac9">已選欄位標色 ｜ 點欄標排序</span>
+    </div>
+    <div id="pv-scroll"><table id="pv-table"></table></div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="tabs">
+      <div class="tab on" onclick="showTab('map')">🗺地圖</div>
+      <div class="tab" onclick="showTab('filter')" id="ttl-filter">📅時段</div>
+      <div class="tab" onclick="showTab('anomaly')" id="ttl-anomaly">⚠️異常</div>
+      <div class="tab" onclick="showTab('hotspot')" id="ttl-hotspot">🔥熱點</div>
+    </div>
+
+    <!-- 地圖 tab -->
+    <div class="tab-body on" id="tb-map">
+      <div class="sec">底圖</div>
+      <div class="lyr-row">
+        <div class="lbtn on" id="lb-emap" onclick="setLayer('emap')">電子地圖</div>
+        <div class="lbtn" id="lb-photo" onclick="setLayer('photo')">衛星地圖</div>
+        <div class="lbtn" id="lb-osm" onclick="setLayer('osm')">OSM</div>
+        <div class="lbtn" id="lb-carto" onclick="setLayer('carto')">淺色</div>
+      </div>
+      <div style="font-size:10px;color:#aaa;margin-bottom:8px">※ 國測中心圖磚若載入失敗會自動切換至 OSM</div>
+      <div class="hr"></div>
+      <div class="sec">顯示選項</div>
+      <div class="opt"><span class="lbl">座標點（含序號）</span><label class="tog"><input type="checkbox" id="o-dots" checked onchange="redrawAll()"><span class="ttr"></span><span class="tth"></span></label></div>
+      <div class="opt"><span class="lbl">點上時間標籤</span><label class="tog"><input type="checkbox" id="o-timelbl" onchange="rebuildWp()"><span class="ttr"></span><span class="tth"></span></label></div>
+      <div class="opt"><span class="lbl">連線路徑</span><label class="tog"><input type="checkbox" id="o-line" checked onchange="redrawAll()"><span class="ttr"></span><span class="tth"></span></label></div>
+      <div class="opt"><span class="lbl">底層預覽線</span><label class="tog"><input type="checkbox" id="o-ghost" checked onchange="redrawAll()"><span class="ttr"></span><span class="tth"></span></label></div>
+      <div class="opt"><span class="lbl">異常標記</span><label class="tog"><input type="checkbox" id="o-anom" checked onchange="redrawAll()"><span class="ttr"></span><span class="tth"></span></label></div>
+      <div class="opt"><span class="lbl">熱點圈</span><label class="tog"><input type="checkbox" id="o-hotspot" checked onchange="redrawAll()"><span class="ttr"></span><span class="tth"></span></label></div>
+      <div class="opt"><span class="lbl">點大小</span><select class="sel" id="o-dotsize" onchange="rebuildWp()"><option value="10">小</option><option value="14" selected>中</option><option value="20">大</option></select></div>
+      <div class="hr"></div>
+      <div class="sec">車輛列表</div>
+      <div id="vlist"></div>
+      <div class="hr"></div>
+      <div class="sec">目前位置</div>
+      <div id="curinfo" style="color:#aaa">—</div>
+      <div class="hr"></div>
+      <!-- 特殊關注點 -->
+      <div class="sec">⭐ 特殊關注點</div>
+      <div style="font-size:10px;color:#888;margin-bottom:7px;line-height:1.5">輸入座標，如「25.0478, 121.5170」</div>
+      <div id="poi-list">
+        <div class="poi-item" id="poi-0">
+          <div class="poi-head">
+            <div class="poi-star" style="background:#ff1744">◆A</div>
+            <input type="text" class="poi-input" id="poi-addr-0" placeholder="座標 25.0478, 121.5170" onkeydown="if(event.key==='Enter')addPoi(0)">
+            <button class="poi-go" onclick="addPoi(0)" title="標示">➤</button>
+            <button class="poi-del" onclick="delPoi(0)" title="清除">✕</button>
+          </div>
+          <div class="poi-label-row"><input type="text" class="poi-label-input" id="poi-label-0" placeholder="備註說明（如：犯嫌住居所）"></div>
+          <div class="poi-status" id="poi-status-0"></div>
+        </div>
+        <div class="poi-item" id="poi-1">
+          <div class="poi-head">
+            <div class="poi-star" style="background:#aa00ff">◆B</div>
+            <input type="text" class="poi-input" id="poi-addr-1" placeholder="座標 25.0478, 121.5170" onkeydown="if(event.key==='Enter')addPoi(1)">
+            <button class="poi-go" onclick="addPoi(1)" title="標示">➤</button>
+            <button class="poi-del" onclick="delPoi(1)" title="清除">✕</button>
+          </div>
+          <div class="poi-label-row"><input type="text" class="poi-label-input" id="poi-label-1" placeholder="備註說明（選填）"></div>
+          <div class="poi-status" id="poi-status-1"></div>
+        </div>
+        <div class="poi-item" id="poi-2">
+          <div class="poi-head">
+            <div class="poi-star" style="background:#ff6d00">◆C</div>
+            <input type="text" class="poi-input" id="poi-addr-2" placeholder="座標 25.0478, 121.5170" onkeydown="if(event.key==='Enter')addPoi(2)">
+            <button class="poi-go" onclick="addPoi(2)" title="標示">➤</button>
+            <button class="poi-del" onclick="delPoi(2)" title="清除">✕</button>
+          </div>
+          <div class="poi-label-row"><input type="text" class="poi-label-input" id="poi-label-2" placeholder="備註說明（選填）"></div>
+          <div class="poi-status" id="poi-status-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 時段 tab -->
+    <div class="tab-body" id="tb-filter">
+      <div class="filter-box date-box">
+        <div class="fb-head">
+          <span class="fb-title">📅 日期</span>
+          <div style="display:flex;gap:3px"><button class="dbtn-sm" onclick="selAllDays()">全選</button><button class="dbtn-sm" onclick="clrAllDays()">全清</button></div>
+        </div>
+        <div class="day-wrap" id="day-wrap"></div>
+        <div id="date-hint" style="font-size:10px;color:#5c7ac9"></div>
+      </div>
+      <div class="filter-box time-box">
+        <div class="fb-head"><span class="fb-title">🕐 時間</span></div>
+        <div class="time-grid">
+          <div class="time-cell"><label>起始時間</label><input type="time" id="f-start" value="00:00" oninput="updateTimeHint()"></div>
+          <div class="time-cell"><label>結束時間</label><input type="time" id="f-end" value="23:59" oninput="updateTimeHint()"></div>
+        </div>
+        <div id="time-hint">全天 00:00 – 23:59</div>
+      </div>
+      <div style="display:flex;gap:5px;margin-bottom:7px">
+        <button class="btn btn-g" style="flex:1;padding:6px;font-size:13px" onclick="applyFilter()">套用篩選</button>
+        <button class="btn" style="padding:6px 10px;font-size:13px;color:#333;border-color:#ddd;background:#fff" onclick="resetFilter()">重置</button>
+      </div>
+      <div class="filter-result" id="filter-result"></div>
+    </div>
+
+    <!-- 異常 tab -->
+    <div class="tab-body" id="tb-anomaly">
+      <div class="athresh-box">
+        <h3>偵測設定</h3>
+        <div class="arow"><span>長停警示（分鐘）</span><input type="number" id="th-stop" value="30" min="1" max="480"></div>
+        <div class="arow"><span>資料缺口（分鐘）</span><input type="number" id="th-gap" value="20" min="1" max="240"></div>
+        <div class="arow"><span>夜間時段（時）</span>
+          <span style="display:flex;align-items:center;gap:2px">
+            <input type="number" id="th-ns" value="23" min="0" max="23" style="width:36px;padding:2px 3px;border:1px solid #ddd;border-radius:4px;font-size:11px">
+            ~<input type="number" id="th-ne" value="5" min="0" max="23" style="width:36px;padding:2px 3px;border:1px solid #ddd;border-radius:4px;font-size:11px">
+          </span>
+        </div>
+        <div class="arow"><span>跨縣市最小位移（km）</span><input type="number" id="th-cc-min" value="1" min="0.1" max="50" step="0.1"></div>
+        <button class="btn btn-g" style="width:100%;margin-top:6px;font-size:11px;padding:5px" onclick="detectAnomalies()">重新偵測</button>
+      </div>
+      <div class="sec" style="margin-bottom:5px">類型篩濾</div>
+      <div class="atype-filters">
+        <div class="achip stop on" id="chip-stop" onclick="togChip('stop')">🟡 長停</div>
+        <div class="achip gap on" id="chip-gap" onclick="togChip('gap')">🟣 缺口</div>
+        <div class="achip night on" id="chip-night" onclick="togChip('night')">🔵 夜間</div>
+        <div class="achip cc on" id="chip-cc" onclick="togChip('cc')">🚗 跨縣市</div>
+      </div>
+      <div id="asum"></div>
+      <div id="no-anom">✅ 未偵測到異常</div>
+      <div class="alist" id="alist"></div>
+    </div>
+
+    <!-- 熱點 tab -->
+    <div class="tab-body" id="tb-hotspot">
+      <div class="hs-setting">
+        <h3 style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;margin-bottom:6px">熱點設定</h3>
+        <div class="hs-row"><span>停留半徑（公尺）</span><input type="number" id="hs-radius" value="200" min="50" max="1000"></div>
+        <div class="hs-row"><span>最短停留（分鐘）</span><input type="number" id="hs-minDur" value="5" min="1" max="60"></div>
+        <div class="hs-row"><span>聚集半徑（公尺）</span><input type="number" id="hs-cluster" value="500" min="100" max="2000"></div>
+        <button class="btn btn-g" style="width:100%;margin-top:6px;font-size:11px;padding:5px" onclick="runHotspot()">重新計算熱點</button>
+      </div>
+      <div id="hs-summary" style="font-size:11px;color:#555;margin-bottom:7px"></div>
+      <div class="sec" style="margin-bottom:5px">每日最長停駐點</div>
+      <div id="daily-stop-wrap" style="overflow-x:auto"></div>
+      <div class="hr"></div>
+      <div class="sec" style="margin-bottom:5px">前 10 熱點</div>
+      <div id="hs-list"></div>
+    </div>
+
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<div id="playbar">
+  <div class="pbrow">
+    <button id="pb-play" onclick="togglePlay()">▶</button>
+    <input type="range" id="pb-slider" min="0" max="1000" value="0" step="1" oninput="scrub(+this.value)">
+    <span id="pb-time">—</span>
+    <div class="spd">速度<select class="sel" id="pb-spd" onchange="spMult=+this.value">
+      <option value="1">1x</option><option value="2">2x</option><option value="5" selected>5x</option>
+      <option value="10">10x</option><option value="30">30x</option><option value="60">60x</option></select></div>
+    <button class="btn" style="color:#333;border-color:#ccc;background:#fff;font-size:11px;padding:2px 8px" onclick="resetPlay()">重置</button>
+  </div>
+  <div id="pb-prog"><div id="pb-fill"></div></div>
+</div>
+
+<input type="file" id="file-input" accept=".csv,.xlsx,.xls">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════
+// 底圖 & 顏色
+// ═══════════════════════════════════════════════════
+const TILES={
+  emap:{
+    urls:['https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}',
+          'https://wmts.nlsc.gov.tw/wmts/EMAP5/default/GoogleMapsCompatible/{z}/{y}/{x}'],
+    attr:'© <a href="https://maps.nlsc.gov.tw">國土測繪中心</a>',label:'電子地圖'},
+  photo:{
+    urls:['https://wmts.nlsc.gov.tw/wmts/PHOTO2/default/GoogleMapsCompatible/{z}/{y}/{x}'],
+    attr:'© 國土測繪中心',label:'衛星地圖'},
+  osm:{
+    urls:['https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+    attr:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',label:'OSM'},
+  carto:{
+    urls:['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+          'https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+          'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
+    attr:'© Esri / CARTO',label:'淺色底圖'}
+};
+const COLORS=['#1565C0','#2E7D32','#C62828','#E65100','#6A1B9A','#00695C','#AD1457','#283593','#827717','#4E342E'];
+const ACOLORS={stop:'#f59e0b',gap:'#7c3aed',night:'#0288d1',cc:'#2ecc71'};
+const ALABEL={stop:'長時停車',gap:'資料缺口',night:'夜間行駛',cc:'疑似跨縣市'};
+const AICON={stop:'🟡',gap:'🟣',night:'🔵',cc:'🚗'};
+
+// ── 台灣縣市多參考點查詢表（每個縣市多個座標，提升邊界準確度）──
+const TW_POINTS=[
+  // 臺北市 12 區
+  ['臺北市',25.032,121.519],['臺北市',25.063,121.515],['臺北市',25.064,121.532],
+  ['臺北市',25.057,121.557],['臺北市',25.027,121.535],['臺北市',25.034,121.500],
+  ['臺北市',25.030,121.563],['臺北市',25.084,121.589],['臺北市',25.056,121.607],
+  ['臺北市',24.992,121.570],['臺北市',25.131,121.501],['臺北市',25.092,121.524],
+  // 新北市 主要區（含桃園交界）
+  ['新北市',25.013,121.467],['新北市',25.080,121.367],['新北市',24.999,121.498],
+  ['新北市',25.011,121.515],['新北市',24.934,121.371],['新北市',24.954,121.354],
+  ['新北市',24.991,121.420],['新北市',24.972,121.443],['新北市',25.087,121.434],
+  ['新北市',25.058,121.430],['新北市',25.084,121.473],['新北市',25.062,121.487],
+  ['新北市',25.036,121.450],['新北市',25.171,121.440],['新北市',25.146,121.398],
+  ['新北市',25.150,121.756],['新北市',25.034,121.661],['新北市',24.997,121.665],
+  // 桃園市
+  ['桃園市',24.993,121.301],['桃園市',24.954,121.225],['桃園市',24.951,121.219],
+  ['桃園市',24.928,121.286],['桃園市',24.908,121.146],['桃園市',25.020,121.345],
+  ['桃園市',24.880,121.290],['桃園市',25.034,121.084],['桃園市',24.972,121.107],
+  ['桃園市',25.045,121.292],['桃園市',25.066,121.193],['桃園市',24.851,121.395],
+  // 基隆市
+  ['基隆市',25.131,121.741],['基隆市',25.135,121.766],['基隆市',25.107,121.713],
+  // 宜蘭縣
+  ['宜蘭縣',24.696,121.747],['宜蘭縣',24.731,121.823],['宜蘭縣',24.836,121.835],
+  ['宜蘭縣',24.601,121.622],['宜蘭縣',24.470,121.751],
+  // 新竹市
+  ['新竹市',24.804,120.969],['新竹市',24.794,121.012],
+  // 新竹縣
+  ['新竹縣',24.704,121.096],['新竹縣',24.829,121.014],['新竹縣',24.683,121.005],
+  ['新竹縣',24.591,121.182],
+  // 苗栗縣
+  ['苗栗縣',24.560,120.821],['苗栗縣',24.692,120.857],['苗栗縣',24.402,120.872],
+  ['苗栗縣',24.503,120.700],
+  // 臺中市
+  ['臺中市',24.147,120.674],['臺中市',24.276,120.741],['臺中市',24.106,120.560],
+  ['臺中市',24.196,120.609],['臺中市',24.260,120.575],['臺中市',24.156,120.901],
+  ['臺中市',24.123,120.617],['臺中市',24.087,121.196],
+  // 彰化縣
+  ['彰化縣',24.074,120.541],['彰化縣',23.948,120.428],['彰化縣',24.119,120.443],
+  ['彰化縣',23.985,120.578],
+  // 南投縣
+  ['南投縣',23.909,120.972],['南投縣',23.764,120.916],['南投縣',23.987,120.692],
+  ['南投縣',23.872,121.158],
+  // 雲林縣
+  ['雲林縣',23.711,120.430],['雲林縣',23.769,120.534],['雲林縣',23.640,120.300],
+  // 嘉義市
+  ['嘉義市',23.481,120.449],
+  // 嘉義縣
+  ['嘉義縣',23.473,120.295],['嘉義縣',23.376,120.448],['嘉義縣',23.491,120.659],
+  // 臺南市
+  ['臺南市',22.995,120.227],['臺南市',23.183,120.351],['臺南市',23.310,120.378],
+  ['臺南市',22.890,120.218],
+  // 高雄市
+  ['高雄市',22.615,120.298],['高雄市',22.825,120.286],['高雄市',22.768,120.529],
+  ['高雄市',22.626,120.345],['高雄市',23.011,120.708],
+  // 屏東縣
+  ['屏東縣',22.555,120.548],['屏東縣',22.336,120.582],['屏東縣',22.012,120.745],
+  ['屏東縣',22.792,120.654],
+  // 花蓮縣
+  ['花蓮縣',23.991,121.611],['花蓮縣',23.518,121.422],['花蓮縣',23.760,121.453],
+  ['花蓮縣',24.137,121.451],
+  // 臺東縣
+  ['臺東縣',22.760,121.144],['臺東縣',22.671,121.063],['臺東縣',22.351,120.851],
+  ['臺東縣',23.108,121.379],
+  // 外島
+  ['澎湖縣',23.566,119.566],['澎湖縣',23.341,119.624],
+  ['金門縣',24.448,118.376],['金門縣',24.482,118.319],
+  ['連江縣',26.160,119.943]
+];
+
+function getCounty(la,ln){
+  if(isNaN(la)||isNaN(ln))return '';
+  let best='',bd=Infinity;
+  TW_POINTS.forEach(([n,cla,cln])=>{
+    const d=(la-cla)**2+(ln-cln)**2;
+    if(d<bd){bd=d;best=n;}
+  });
+  return best;
+}
+
+// ═══════════════════════════════════════════════════
+// 全域狀態
+// ═══════════════════════════════════════════════════
+let M=null, curTile=null, popup=null;
+let rawData=[], cols=[], cmap={lat:'',lng:'',vid:'',date:'',time:''};
+let allVeh={}, curVeh={}, vids=[], vis={};
+let tMin=0, tMax=0, tCur=0, hasTime=false;
+let playing=false, rafId=null, lastT=null, spMult=5;
+let VL={};                    // vid → {ghost,trail,startMk,endMk,movMk,wpMks[]}
+let anomalies=[], anomMks=[];
+let allDates=[], selDates=new Set();
+let visTypes={stop:true,gap:true,night:true,cc:true};
+let allStays=[];              // 所有停留點
+let hotspots=[];              // 聚類後熱點
+let hotspotMks=[];            // 熱點 Leaflet 標記
+let sortCol=null, sortAsc=true;
+
+// ═══════════════════════════════════════════════════
+// 地圖初始化
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  M=L.map('map',{center:[23.97,120.97],zoom:8});
+  setLayer('emap');
+  popup=L.popup({maxWidth:280});
+  stat('✅ 地圖就緒（國土測繪中心）','ok');
+  setTimeout(()=>document.getElementById('status').style.display='none',3500);
+});
+function setLayer(k){
+  if(curTile)M.removeLayer(curTile);
+  const def=TILES[k];
+  const tryUrl=(idx)=>{
+    if(idx>=def.urls.length){
+      // 所有 URL 都失敗 → 切換至 OSM（OSM 本身就是 OSM 則不切換）
+      if(k!=='osm'){
+        stat(`⚠ ${def.label}圖磚無法載入，已切換至 OSM`,'info');
+        setLayer('osm');
+      }
+      return;
+    }
+    const layer=L.tileLayer(def.urls[idx],{maxZoom:20,attribution:def.attr});
+    let errorCount=0;
+    layer.on('tileerror',()=>{
+      errorCount++;
+      if(errorCount>=3&&idx+1<def.urls.length){
+        M.removeLayer(layer);
+        tryUrl(idx+1);
+      } else if(errorCount>=5&&idx+1>=def.urls.length&&k!=='osm'){
+        M.removeLayer(layer);
+        stat(`⚠ ${def.label}圖磚無法載入，已切換至 OSM`,'info');
+        setLayer('osm');
+      }
+    });
+    layer.addTo(M);
+    curTile=layer;
+  };
+  tryUrl(0);
+  document.querySelectorAll('.lbtn').forEach(b=>b.classList.remove('on'));
+  const el=document.getElementById('lb-'+k);if(el)el.classList.add('on');
+}
+function stat(msg,type){const b=document.getElementById('status');b.textContent=msg;b.className=type||'info';b.style.display='block';}
+function showTab(n){
+  ['map','filter','anomaly','hotspot'].forEach((t,i)=>{
+    document.querySelectorAll('.tab')[i].classList.toggle('on',t===n);
+    document.getElementById('tb-'+t).classList.toggle('on',t===n);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// 檔案讀取
+// ═══════════════════════════════════════════════════
+document.getElementById('file-input').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  document.getElementById('file-name').textContent=f.name;
+  readFile(f);e.target.value='';
+});
+function readFile(f){
+  stat('讀取中…','info');
+  const ext=f.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){
+    // 先以 ArrayBuffer 讀取，偵測編碼
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      const buf=ev.target.result;
+      const bytes=new Uint8Array(buf);
+      // 偵測 BOM
+      let enc='UTF-8';
+      if(bytes[0]===0xFF&&bytes[1]===0xFE)enc='UTF-16LE';
+      else if(bytes[0]===0xFE&&bytes[1]===0xFF)enc='UTF-16BE';
+      else if(bytes[0]===0xEF&&bytes[1]===0xBB&&bytes[2]===0xBF)enc='UTF-8';
+      else {
+        // 嘗試 UTF-8 解碼是否成功
+        try{new TextDecoder('utf-8',{fatal:true}).decode(buf);enc='UTF-8';}
+        catch(e){enc='Big5';}
+      }
+      let text='';
+      try{text=new TextDecoder(enc).decode(buf);}
+      catch(e){try{text=new TextDecoder('Big5').decode(buf);}catch(e2){text=new TextDecoder('UTF-8').decode(buf);}}
+      // 移除 BOM
+      if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
+      // 偵測分隔符：比較 , ; \t 出現次數
+      const firstLine=text.split(/\r?\n/)[0]||'';
+      const cnt={',':(firstLine.match(/,/g)||[]).length,';':(firstLine.match(/;/g)||[]).length,'\t':(firstLine.match(/\t/g)||[]).length};
+      const delim=Object.entries(cnt).reduce((a,b)=>b[1]>a[1]?b:a,[',',0])[0];
+      // 解析
+      Papa.parse(text,{header:true,skipEmptyLines:true,dynamicTyping:false,delimiter:delim,
+        complete:r=>{
+          if(!r.data||!r.data.length){stat('❌ CSV 解析失敗：檔案內無有效資料','err');return;}
+          // 清理欄位名稱（去除 BOM、空白）
+          rawData=r.data;
+          cols=(r.meta.fields||[]).map(c=>c.replace(/^\uFEFF/,'').trim());
+          // 同步重新對應欄位名稱
+          if(r.meta.fields){
+            const fields=r.meta.fields;
+            rawData=rawData.map(row=>{
+              const newRow={};
+              fields.forEach((f,i)=>{newRow[cols[i]]=row[f];});
+              return newRow;
+            });
+          }
+          onLoaded();
+        },
+        error:e=>stat('❌ CSV 錯誤：'+e.message,'err')
+      });
+    };
+    rd.onerror=()=>stat('❌ 檔案讀取失敗','err');
+    rd.readAsArrayBuffer(f);
+  }
+  else{const rd=new FileReader();
+    rd.onload=ev=>{try{
+      const wb=XLSX.read(ev.target.result,{type:'array',raw:false,cellText:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const arr=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+      if(!arr.length){stat('❌ 無資料','err');return;}
+      rawData=arr;cols=Object.keys(arr[0]);onLoaded();
+    }catch(e){stat('❌ '+e.message,'err');}};
+    rd.readAsArrayBuffer(f);}
+}
+function onLoaded(){stat(`✅ 讀取 ${rawData.length.toLocaleString()} 筆`,'ok');buildMappingPanel();}
+
+// ═══════════════════════════════════════════════════
+// 欄位偵測與對應
+// ═══════════════════════════════════════════════════
+function guessCol(key){
+  const sample=rawData.slice(0,30);
+
+  // ── lat/lng：第一優先用「數值範圍」判斷 ──
+  // 這樣能避免來源資料欄位名稱被標反（如「經度」欄裡面其實放緯度值）的情況
+  if(key==='lat'||key==='lng'){
+    const colMeans={};
+    cols.forEach(c=>{
+      const vals=sample.map(r=>pCoord(r[c])).filter(v=>!isNaN(v)&&v>=-180&&v<=180);
+      if(vals.length>=3)colMeans[c]=vals.reduce((a,b)=>a+b,0)/vals.length;
+    });
+    let best='',bs=-Infinity;
+    Object.entries(colMeans).forEach(([c,mean])=>{
+      // 緯度：均值絕對值 ≤ 90，越接近 23.5（台灣中心）分數越高
+      if(key==='lat'&&Math.abs(mean)<=90){
+        const s=-Math.abs(mean-23.5);
+        if(s>bs){bs=s;best=c;}
+      }
+      // 經度：均值絕對值 > 90（必為經度），越接近 121（台灣中心）分數越高
+      if(key==='lng'&&Math.abs(mean)>90){
+        const s=-Math.abs(mean-121);
+        if(s>bs){bs=s;best=c;}
+      }
+    });
+    if(best)return best;
+    // 找不到符合數值範圍的（資料不在台灣）→ 退而求其次用名稱
+  }
+
+  // ── 第二優先：欄位名稱比對（lat/lng 數值無法判斷時、以及 vid/date/time）──
+  const pats={
+    lat:/lat|latitude|緯度|纬度|gpsy/,
+    lng:/lon|lng|longitude|經度|经度|gpsx/,
+    vid:/vehicle|car|id|車號|牌照|plate|veh|devid/,
+    date:/^date$|^日期$|^年月日$/,
+    time:/time|datetime|timestamp|時間|日期|gpstime|date/
+  };
+  return cols.find(c=>pats[key]?.test(c.toLowerCase().replace(/[\s_]/g,'')))||'';
+}
+function buildMappingPanel(){
+  document.getElementById('mapping-panel').style.display='flex';
+  document.getElementById('btn-clear').style.display='';
+  sortCol=null;sortAsc=true;
+  const fields=[{k:'lat',lbl:'經度＊'},{k:'lng',lbl:'緯度＊'},{k:'vid',lbl:'車輛 ID'},{k:'date',lbl:'日期欄'},{k:'time',lbl:'時間欄'}];
+  const grid=document.getElementById('col-grid');grid.innerHTML='';
+  fields.forEach(f=>{
+    const g=guessCol(f.k);
+    const opts=cols.map(c=>`<option value="${escA(c)}"${g===c?' selected':''}>${c}</option>`).join('');
+    const div=document.createElement('div');div.className='col-cell';
+    div.innerHTML=`<label>${f.lbl}</label><select id="cm-${f.k}"><option value="">—</option>${opts}</select><div class="col-hint" id="ch-${f.k}"></div>`;
+    grid.appendChild(div);
+    const sel=div.querySelector('select');
+    sel.addEventListener('change',()=>{refreshHint(f.k,sel.value);hlPvCols();});
+    refreshHint(f.k,g);
+  });
+  document.getElementById('col-note').textContent=`${rawData.length.toLocaleString()} 筆 ｜ ${cols.slice(0,6).join('、')}${cols.length>6?'…':''}`;
+  buildPvTable();hlPvCols();
+}
+function refreshHint(key,col){
+  const el=document.getElementById('ch-'+key);if(!el||!col){if(el)el.textContent='';return;}
+  if(key==='lat'||key==='lng'){
+    const vals=rawData.slice(0,30).map(r=>pCoord(r[col])).filter(v=>!isNaN(v));
+    if(!vals.length){el.textContent='';return;}
+    const mean=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(4);
+    el.className='col-hint ok';el.textContent=`✓ 均值 ${mean}`;
+  }else{const s=rawData.slice(0,1).map(r=>String(r[col]||''))[0]||'';el.className='col-hint ok';el.textContent=s?`例：${s}`:'';}
+}
+
+// ═══════════════════════════════════════════════════
+// 預覽表
+// ═══════════════════════════════════════════════════
+function buildPvTable(){
+  document.getElementById('pv-title').textContent=`資料預覽（${rawData.length} 筆）`;
+  const ths=cols.map((c,i)=>`<th onclick="sortPv(${i})">${escH(c)}<span id="si${i}"></span></th>`).join('');
+  const trs=rawData.slice(0,5000).map(r=>`<tr>${cols.map(c=>`<td>${escH(String(r[c]??''))}</td>`).join('')}</tr>`).join('');
+  document.getElementById('pv-table').innerHTML=`<thead><tr>${ths}</tr></thead><tbody>${trs}</tbody>`;
+}
+function sortPv(ci){
+  const c=cols[ci];
+  if(sortCol===ci)sortAsc=!sortAsc;else{sortCol=ci;sortAsc=true;}
+  rawData.sort((a,b)=>{const va=a[c]??'',vb=b[c]??'',na=parseFloat(va),nb=parseFloat(vb);
+    return(!isNaN(na)&&!isNaN(nb))?(sortAsc?na-nb:nb-na):(sortAsc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va)));});
+  cols.forEach((_,i)=>{const e=document.getElementById('si'+i);if(e)e.textContent='';});
+  const si=document.getElementById('si'+ci);if(si)si.textContent=sortAsc?' ↑':' ↓';
+  buildPvTable();hlPvCols();
+}
+function hlPvCols(){
+  document.querySelectorAll('#pv-table td,#pv-table th').forEach(e=>e.className='');
+  [['lat','hl-lat'],['lng','hl-lng'],['vid','hl-vid'],['date','hl-date'],['time','hl-time']].forEach(([k,cls])=>{
+    const s=document.getElementById('cm-'+k);if(!s||!s.value)return;
+    const ci=cols.indexOf(s.value);if(ci<0)return;
+    document.querySelectorAll(`#pv-table thead th:nth-child(${ci+1}),#pv-table tbody td:nth-child(${ci+1})`).forEach(e=>e.classList.add(cls));
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// 套用欄位 & 解析
+// ═══════════════════════════════════════════════════
+function applyMapping(){
+  cmap.lat=document.getElementById('cm-lat').value;
+  cmap.lng=document.getElementById('cm-lng').value;
+  cmap.vid=document.getElementById('cm-vid').value;
+  cmap.date=document.getElementById('cm-date').value;
+  cmap.time=document.getElementById('cm-time').value;
+  if(!cmap.lat||!cmap.lng){alert('請選擇緯度與經度欄位');return;}
+  document.getElementById('mapping-panel').style.display='none';
+  parseAll();
+}
+
+function parseAll(){
+  allVeh={};const disp={};
+  rawData.forEach((r,rowIdx)=>{
+    const la=pCoord(r[cmap.lat]),ln=pCoord(r[cmap.lng]);
+    if(isNaN(la)||isNaN(ln)||la<-90||la>90||ln<-180||ln>180)return;
+    const rawV=cmap.vid?String(r[cmap.vid]||'未知').trim():'所有車輛';
+    const vk=cmap.vid?normVid(rawV):'所有車輛';
+    if(!disp[vk])disp[vk]=rawV;
+    // 時間解析（支援分欄或合欄自動拆分）
+    let ts=NaN, dateStr='', timeStr='';
+    if(cmap.date&&cmap.time){
+      const dt=String(r[cmap.date]||'').trim()+' '+String(r[cmap.time]||'').trim();
+      ts=pTs(dt.trim());
+    } else if(cmap.date){
+      ts=pTs(String(r[cmap.date]||'').trim());
+    } else if(cmap.time){
+      ts=pTs(String(r[cmap.time]||'').trim());
+    }
+    if(!isNaN(ts)){const d=new Date(ts);dateStr=dKey(d);timeStr=`${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;}
+    if(!allVeh[vk])allVeh[vk]=[];
+    allVeh[vk].push({la,ln,ts,dateStr,timeStr,dn:disp[vk],vk,rowIdx});
+  });
+  Object.keys(allVeh).forEach(v=>allVeh[v].sort((a,b)=>a.ts-b.ts));
+  hasTime=Object.keys(allVeh).some(v=>allVeh[v].some(p=>!isNaN(p.ts)));
+  if(hasTime){
+    const ds=new Set();Object.values(allVeh).flat().forEach(p=>{if(p.dateStr)ds.add(p.dateStr);});
+    allDates=Array.from(ds).sort();selDates=new Set(allDates);
+    buildDayBtns();
+  }
+  applyFilter(true);
+}
+
+// ═══════════════════════════════════════════════════
+// 日期按鈕
+// ═══════════════════════════════════════════════════
+function buildDayBtns(){
+  document.getElementById('day-wrap').innerHTML=allDates.map(d=>`<div class="dbtn on" id="db-${d}" onclick="togDay('${d}')">${d.slice(5)}</div>`).join('');
+  const h=document.getElementById('date-hint');
+  if(h&&allDates.length)h.textContent=`${allDates[0]} ～ ${allDates[allDates.length-1]}（${allDates.length} 天）`;
+  updateTimeHint();
+}
+function togDay(d){selDates.has(d)?selDates.delete(d):selDates.add(d);const b=document.getElementById('db-'+d);if(b)b.classList.toggle('on',selDates.has(d));}
+function selAllDays(){allDates.forEach(d=>{selDates.add(d);const b=document.getElementById('db-'+d);if(b)b.classList.add('on');});}
+function clrAllDays(){allDates.forEach(d=>{selDates.delete(d);const b=document.getElementById('db-'+d);if(b)b.classList.remove('on');});}
+function updateTimeHint(){
+  const s=document.getElementById('f-start')?.value||'00:00',e=document.getElementById('f-end')?.value||'23:59';
+  const el=document.getElementById('time-hint');if(!el)return;
+  if(s==='00:00'&&e==='23:59'){el.textContent='全天 00:00 – 23:59';el.style.color='#7c3aed';}
+  else{const[sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number),x=sh*60+sm>eh*60+em;
+    el.textContent=`${s} – ${e}${x?' （跨午夜）':''}`;el.style.color=x?'#b45309':'#5b21b6';}
+}
+
+// ═══════════════════════════════════════════════════
+// 篩選
+// ═══════════════════════════════════════════════════
+function applyFilter(skipFit){
+  const ss=document.getElementById('f-start')?.value||'00:00';
+  const se=document.getElementById('f-end')?.value||'23:59';
+  const[sh,sm]=ss.split(':').map(Number),[eh,em]=se.split(':').map(Number);
+  const sM=sh*60+sm,eM=eh*60+em;
+  curVeh={};
+  Object.entries(allVeh).forEach(([vk,pts])=>{
+    const ok=pts.filter(p=>{
+      if(isNaN(p.ts))return true;
+      if(hasTime&&selDates.size>0&&p.dateStr&&!selDates.has(p.dateStr))return false;
+      const d=new Date(p.ts),m=d.getHours()*60+d.getMinutes();
+      return sM<=eM?m>=sM&&m<=eM:m>=sM||m<=eM;
+    });
+    if(ok.length)curVeh[vk]=ok;
+  });
+  vids=Object.keys(curVeh);
+  vids.forEach(v=>{if(vis[v]===undefined)vis[v]=true;});
+  const total=vids.reduce((s,v)=>s+curVeh[v].length,0);
+  if(hasTime){const ts=vids.flatMap(v=>curVeh[v].map(p=>p.ts).filter(t=>!isNaN(t)));tMin=ts.length?Math.min(...ts):0;tMax=ts.length?Math.max(...ts):0;tCur=tMin;}
+  const selStr=selDates.size===allDates.length?`全部 ${allDates.length} 天`:Array.from(selDates).sort().join('、');
+  const tStr=(ss==='00:00'&&se==='23:59')?'全天':`${ss} – ${se}`;
+  const fr=document.getElementById('filter-result');fr.style.display='block';
+  fr.innerHTML=`<b>日期：</b>${selStr}<br><b>時間：</b>${tStr}<br><b>結果：</b>${vids.length} 輛車 ${total.toLocaleString()} 筆`;
+  stat(`篩選後：${vids.length} 輛車 ${total.toLocaleString()} 筆`,'ok');
+  stopPlay();destroyLayers();destroyAnom();destroyHotspots();
+  buildLayers();renderVList();
+  if(!skipFit&&vids.length){const pts=vids.flatMap(v=>curVeh[v].map(p=>[p.la,p.ln]));if(pts.length)try{M.fitBounds(L.latLngBounds(pts),{padding:[30,30]});}catch(e){}}
+  if(hasTime&&tMax>tMin){document.getElementById('playbar').style.display='flex';resetPlay();}
+  else{document.getElementById('playbar').style.display='none';vids.forEach(drawStatic);}
+  detectAnomalies();
+  runHotspot();
+}
+function resetFilter(){document.getElementById('f-start').value='00:00';document.getElementById('f-end').value='23:59';selAllDays();updateTimeHint();applyFilter();}
+
+// ═══════════════════════════════════════════════════
+// Leaflet 圖層
+// ═══════════════════════════════════════════════════
+function buildLayers(){
+  const sz=parseInt(document.getElementById('o-dotsize').value)||14;
+  vids.forEach((vk,i)=>{
+    const color=COLORS[i%COLORS.length],dn=curVeh[vk][0]?.dn||vk;
+    const pts=curVeh[vk].map(p=>[p.la,p.ln]),last=pts[pts.length-1]||pts[0];
+    const ghost=L.polyline(pts,{color,weight:2,opacity:.15,dashArray:'5 5'});
+    const trail=L.polyline([],{color,weight:3.5,opacity:.9});
+    const startMk=L.marker(pts[0]||[23.97,120.97],{icon:L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:`<div class="mk-start" style="width:28px;height:28px;background:#1a9e60">起</div>`}),zIndexOffset:500});
+    startMk.bindTooltip(`${dn}　起點`);
+    const endMk=L.marker(last,{icon:L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:`<div class="mk-end" style="width:28px;height:28px;background:#c0392b">終</div>`}),zIndexOffset:500});
+    endMk.bindTooltip(`${dn}　終點`);
+    const movMk=L.marker(pts[0]||[23.97,120.97],{icon:L.divIcon({className:'',iconSize:[16,16],iconAnchor:[8,8],html:`<div class="mk-mov" style="width:16px;height:16px;background:${color}"></div>`}),zIndexOffset:600});
+    movMk.bindTooltip(dn);
+    const wpMks=curVeh[vk].map((p,idx)=>makeWp(p,idx,color,sz,dn));
+    VL[vk]={ghost,trail,startMk,endMk,movMk,wpMks,color,dn};
+  });
+  redrawAll();
+}
+
+function makeWp(p,idx,color,sz,dn){
+  const showTL=document.getElementById('o-timelbl').checked;
+  const half=Math.round(sz/2),fs=Math.max(7,half-3);
+  const icon=L.divIcon({className:'',iconSize:[sz,sz],iconAnchor:[half,half],
+    html:`<div class="wp-dot" style="width:${sz}px;height:${sz}px;background:${color};font-size:${fs}px">${idx+1}</div>`});
+  const mk=L.marker([p.la,p.ln],{icon,zIndexOffset:100});
+  let tip=`<div style="font-size:13px"><b style="color:${color}">${dn}</b>　第 <b>${idx+1}</b> 點`;
+  if(p.dateStr||p.timeStr)tip+=`<br>⏱ ${p.dateStr} ${p.timeStr}`.trim();
+  tip+=`<br>📍 ${p.la.toFixed(6)}, ${p.ln.toFixed(6)}</div>`;
+  mk.on('click',()=>popup.setContent(tip).setLatLng([p.la,p.ln]).openOn(M));
+  if(showTL&&p.timeStr)mk.bindTooltip(p.timeStr,{permanent:true,direction:'top',offset:[0,-half-2]});
+  return mk;
+}
+
+function redrawAll(){
+  if(!M)return;
+  const dots=document.getElementById('o-dots').checked;
+  const line=document.getElementById('o-line').checked;
+  const ghost=document.getElementById('o-ghost').checked;
+  const anom=document.getElementById('o-anom').checked;
+  const hs=document.getElementById('o-hotspot').checked;
+  vids.forEach(vk=>{const l=VL[vk];if(!l)return;const v=vis[vk];
+    lay(l.ghost,v&&ghost);lay(l.trail,v&&line);lay(l.startMk,v);lay(l.endMk,v);lay(l.movMk,v);
+    l.wpMks.forEach(m=>lay(m,v&&dots));});
+  anomMks.forEach(({mk,type})=>lay(mk,anom&&visTypes[type]));
+  hotspotMks.forEach(m=>lay(m,hs));
+}
+
+function lay(layer,show){
+  if(!layer)return;
+  if(show&&!M.hasLayer(layer))M.addLayer(layer);
+  else if(!show&&M.hasLayer(layer))M.removeLayer(layer);
+}
+function drawStatic(vk){const l=VL[vk];if(!l)return;l.trail.setLatLngs(curVeh[vk].map(p=>[p.la,p.ln]));const last=curVeh[vk].at(-1);if(last)l.movMk.setLatLng([last.la,last.ln]);}
+
+function rebuildWp(){
+  if(!vids.length)return;
+  const sz=parseInt(document.getElementById('o-dotsize').value)||14;
+  const dots=document.getElementById('o-dots').checked;
+  vids.forEach(vk=>{const l=VL[vk];if(!l)return;
+    l.wpMks.forEach(m=>{if(M.hasLayer(m))M.removeLayer(m);});
+    l.wpMks=curVeh[vk].map((p,idx)=>makeWp(p,idx,l.color,sz,l.dn));
+    if(vis[vk]&&dots)l.wpMks.forEach(m=>M.addLayer(m));});
+}
+function destroyLayers(){vids.forEach(vk=>{const l=VL[vk];if(!l)return;['ghost','trail','startMk','endMk','movMk'].forEach(k=>{if(l[k]&&M.hasLayer(l[k]))M.removeLayer(l[k]);});l.wpMks?.forEach(m=>{if(M.hasLayer(m))M.removeLayer(m);});});VL={};}
+
+// ═══════════════════════════════════════════════════
+// 停留點偵測
+// ═══════════════════════════════════════════════════
+function hmM(a,b,c,d){return haversine(a,b,c,d)*1000;}
+function detectStays(pts, radiusM, minMs){
+  const stays=[];if(!pts||pts.length<2)return stays;
+  const tpts=pts.filter(p=>!isNaN(p.ts));
+  let i=0;
+  while(i<tpts.length){
+    let j=i+1;
+    while(j<tpts.length&&hmM(tpts[i].la,tpts[i].ln,tpts[j].la,tpts[j].ln)<=radiusM)j++;
+    j--;
+    if(j>i&&(tpts[j].ts-tpts[i].ts)>=minMs){
+      const seg=tpts.slice(i,j+1);
+      const cnt=seg.length;
+      stays.push({
+        la:seg.reduce((s,p)=>s+p.la,0)/cnt,
+        ln:seg.reduce((s,p)=>s+p.ln,0)/cnt,
+        arrive:tpts[i].ts, depart:tpts[j].ts,
+        duration:tpts[j].ts-tpts[i].ts,
+        vk:tpts[i].vk, dn:tpts[i].dn,
+        dateStr:tpts[i].dateStr||dKey(new Date(tpts[i].ts)),
+        rowStart:tpts[i].rowIdx, rowEnd:tpts[j].rowIdx
+      });
+      i=j+1;
+    } else i++;
+  }
+  return stays;
+}
+
+function clusterStays(stays, clRadiusM){
+  const used=new Set(),clusters=[];
+  stays.forEach((s,idx)=>{
+    if(used.has(idx))return;
+    const members=[s];used.add(idx);
+    stays.forEach((o,oi)=>{if(!used.has(oi)&&hmM(s.la,s.ln,o.la,o.ln)<=clRadiusM){members.push(o);used.add(oi);}});
+    const tot=members.reduce((a,m)=>a+m.duration,0);
+    const wla=members.reduce((a,m)=>a+m.la*m.duration,0)/tot;
+    const wln=members.reduce((a,m)=>a+m.ln*m.duration,0)/tot;
+    clusters.push({la:wla,ln:wln,visits:members.length,totalDuration:tot,stays:members,vehicles:[...new Set(members.map(m=>m.vk))]});
+  });
+  return clusters.sort((a,b)=>b.totalDuration-a.totalDuration);
+}
+
+// ═══════════════════════════════════════════════════
+// 熱點計算 & 顯示
+// ═══════════════════════════════════════════════════
+function runHotspot(){
+  destroyHotspots();
+  if(!vids.length){document.getElementById('hs-summary').textContent='';document.getElementById('hs-list').innerHTML='';document.getElementById('daily-stop-wrap').innerHTML='';return;}
+  const radiusM=parseInt(document.getElementById('hs-radius').value)||200;
+  const minMs=(parseInt(document.getElementById('hs-minDur').value)||5)*60000;
+  const clRadiusM=parseInt(document.getElementById('hs-cluster').value)||500;
+  allStays=vids.flatMap(vk=>detectStays(curVeh[vk],radiusM,minMs));
+  hotspots=clusterStays(allStays,clRadiusM);
+  renderHotspotMarkers();
+  renderHotspotList();
+  renderDailyLongestStop();
+  document.getElementById('hs-summary').textContent=`偵測到 ${allStays.length} 個停留事件，聚類為 ${hotspots.length} 個熱點`;
+  const tab=document.getElementById('ttl-hotspot');
+  if(tab)tab.textContent=`🔥熱點${hotspots.length?`(${hotspots.length})`:''}`;
+}
+
+function renderHotspotMarkers(){
+  if(!hotspots.length)return;
+  const maxV=Math.max(...hotspots.map(h=>h.visits));
+  const showHs=document.getElementById('o-hotspot').checked;
+  hotspots.slice(0,20).forEach((h,i)=>{
+    const r=Math.min(10+h.visits*6,45);
+    const ratio=h.visits/maxV;
+    const color=ratio>.7?'#e8431a':ratio>.4?'#f59e0b':'#1a9e60';
+    const mk=L.circleMarker([h.la,h.ln],{radius:r,color:'#fff',fillColor:color,fillOpacity:.5+.4*ratio,weight:2});
+    const dur=fmtDur(h.totalDuration);
+    mk.bindTooltip(`<b>#${i+1} 熱點</b><br>停留 ${h.visits} 次 共 ${dur}<br>${h.la.toFixed(5)}, ${h.ln.toFixed(5)}`);
+    mk.on('click',()=>{
+      const county=getCounty(h.la,h.ln);
+      popup.setContent(`<div style="font-size:13px"><b>#${i+1} 熱點</b><br>停留 <b>${h.visits}</b> 次，共 <b>${dur}</b><br>${county}<br>${h.la.toFixed(6)}, ${h.ln.toFixed(6)}</div>`).setLatLng([h.la,h.ln]).openOn(M);
+    });
+    if(showHs)M.addLayer(mk);
+    hotspotMks.push(mk);
+  });
+}
+
+function renderHotspotList(){
+  const list=document.getElementById('hs-list');
+  if(!hotspots.length){list.innerHTML='<div style="color:#aaa;font-size:12px;text-align:center;padding:12px">尚無熱點資料</div>';return;}
+  list.innerHTML=hotspots.slice(0,10).map((h,i)=>{
+    const county=getCounty(h.la,h.ln);
+    return`<div class="hs-item" onclick="focusHotspot(${i})">
+      <div class="hs-rank">${i+1}</div>
+      <div class="hs-info">
+        <div class="hs-addr">${county||`${h.la.toFixed(4)}, ${h.ln.toFixed(4)}`}</div>
+        <div class="hs-stat">停留 ${h.visits} 次 ｜ 共 ${fmtDur(h.totalDuration)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function focusHotspot(i){
+  const h=hotspots[i];if(!h)return;
+  M.setView([h.la,h.ln],15);
+  showTab('hotspot');
+}
+
+function renderDailyLongestStop(){
+  const wrap=document.getElementById('daily-stop-wrap');
+  if(!allStays.length){wrap.innerHTML='<div style="color:#aaa;font-size:12px">無停留資料</div>';return;}
+  const byDate={};
+  allStays.forEach(s=>{const dk=s.dateStr;if(!dk)return;if(!byDate[dk])byDate[dk]=[];byDate[dk].push(s);});
+  const rows=Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date,stays])=>{
+    const top=stays.reduce((mx,s)=>s.duration>mx.duration?s:mx,stays[0]);
+    return`<tr><td>${date}</td><td>${top.dn}</td><td>${fmtDur(top.duration)}</td><td>${fmtT(top.arrive).slice(11,16)} – ${fmtT(top.depart).slice(11,16)}</td></tr>`;
+  }).join('');
+  wrap.innerHTML=`<table class="daily-stop-table"><thead><tr><th>日期</th><th>車輛</th><th>時長</th><th>時段</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function destroyHotspots(){hotspotMks.forEach(m=>{if(M.hasLayer(m))M.removeLayer(m);});hotspotMks=[];}
+
+// ═══════════════════════════════════════════════════
+// 異常偵測（長停、缺口、夜間、跨縣市）
+// ═══════════════════════════════════════════════════
+function haversine(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+
+function detectAnomalies(){
+  anomalies=[];destroyAnom();
+  const stT=(+(document.getElementById('th-stop').value)||30)*60000;
+  const gT=(+(document.getElementById('th-gap').value)||20)*60000;
+  const nS=+(document.getElementById('th-ns').value);
+  const nE=+(document.getElementById('th-ne').value);
+  const ccMinKm=+(document.getElementById('th-cc-min').value)||1;
+
+  vids.forEach(vk=>{
+    // 保留原始索引以便顯示點位序號
+    const allPts=curVeh[vk];
+    const pts=[];
+    allPts.forEach((p,i)=>{if(!isNaN(p.ts))pts.push({...p,origIdx:i});});
+    if(pts.length<2)return;
+    const dn=pts[0].dn;
+    for(let i=1;i<pts.length;i++){
+      const p0=pts[i-1],p1=pts[i],dtMs=p1.ts-p0.ts;
+      const dist=haversine(p0.la,p0.ln,p1.la,p1.ln);
+      const seq0=p0.origIdx+1, seq1=p1.origIdx+1;
+      if(dtMs>gT&&dist<1)
+        anomalies.push({type:'gap',vk,dn,ts:p0.ts,la:p0.la,ln:p0.ln,seq:seq0,seq2:seq1,
+          detail:`資料中斷 ${Math.round(dtMs/60000)} 分鐘`});
+      if(dtMs>stT&&dist<0.1)
+        anomalies.push({type:'stop',vk,dn,ts:p0.ts,la:p0.la,ln:p0.ln,seq:seq0,seq2:seq1,
+          detail:`停留 ${Math.round(dtMs/60000)} 分鐘未移動`});
+      // 跨縣市：前後兩點分屬不同縣市
+      if(dist>=ccMinKm){
+        const c0=getCounty(p0.la,p0.ln),c1=getCounty(p1.la,p1.ln);
+        if(c0&&c1&&c0!==c1){
+          anomalies.push({type:'cc',vk,dn,ts:p0.ts,la:p0.la,ln:p0.ln,la2:p1.la,ln2:p1.ln,c0,c1,seq:seq0,seq2:seq1,
+            detail:`${c0} → ${c1}（位移 ${dist.toFixed(1)} km${dtMs>0?`，${Math.round(dtMs/60000)} 分鐘`:''}）`});
+        }
+      }
+    }
+    pts.forEach((p,i)=>{
+      const h=new Date(p.ts).getHours();
+      const isN=nS>nE?(h>=nS||h<=nE):(h>=nS&&h<=nE);
+      if(isN&&!anomalies.some(a=>a.type==='night'&&a.vk===vk&&Math.abs(a.ts-p.ts)<30*60000))
+        anomalies.push({type:'night',vk,dn,ts:p.ts,la:p.la,ln:p.ln,seq:p.origIdx+1,
+          detail:`夜間行駛 ${p2(new Date(p.ts).getHours())}:${p2(new Date(p.ts).getMinutes())}`});
+    });
+  });
+
+  renderAnomalyList();placeAnomMks();markAnomalyDays();
+  const tab=document.getElementById('ttl-anomaly');
+  if(tab)tab.textContent=`⚠️異常${anomalies.length?`(${anomalies.length})`:''}`;
+}
+
+function togChip(type){
+  visTypes[type]=!visTypes[type];
+  document.getElementById('chip-'+type).classList.toggle('on',visTypes[type]);
+  renderAnomalyList();
+  anomMks.forEach(({mk,type:t})=>lay(mk,document.getElementById('o-anom').checked&&visTypes[t]));
+}
+
+function renderAnomalyList(){
+  const list=document.getElementById('alist'),sum=document.getElementById('asum'),noA=document.getElementById('no-anom');
+  if(!anomalies.length){sum.textContent='';noA.style.display='block';list.innerHTML='';return;}
+  noA.style.display='none';
+  const cnt={stop:0,gap:0,night:0,cc:0};anomalies.forEach(a=>cnt[a.type]++);
+  sum.innerHTML=`共 <b>${anomalies.length}</b>：${Object.entries(cnt).filter(([,n])=>n).map(([t,n])=>`${AICON[t]}${ALABEL[t]}×${n}`).join(' ')}`;
+  const vis=anomalies.filter(a=>visTypes[a.type]);
+  list.innerHTML=vis.length
+    ?vis.map((a,i)=>{
+        const seqLbl=a.seq?(a.seq2&&a.seq2!==a.seq?`<span style="background:#fff;color:#333;border:1px solid #ddd;padding:0 4px;border-radius:3px;font-size:10px;font-weight:700;margin-right:4px">#${a.seq}→#${a.seq2}</span>`:`<span style="background:#fff;color:#333;border:1px solid #ddd;padding:0 4px;border-radius:3px;font-size:10px;font-weight:700;margin-right:4px">#${a.seq}</span>`):'';
+        return `<div class="aitem ${a.type}" onclick="focusAnom(${anomalies.indexOf(a)})">
+          <div class="atype-lbl">${AICON[a.type]} ${ALABEL[a.type]}</div>
+          <div class="avid">${seqLbl}${a.dn}</div>
+          <div class="adetail">${a.detail}</div>
+          <div class="atime-s">${!isNaN(a.ts)?fmtT(a.ts):''}</div>
+        </div>`;
+      }).join('')
+    :'<div style="text-align:center;padding:10px;color:#aaa;font-size:11px">此類型無異常或已篩除</div>';
+}
+
+function focusAnom(i){
+  const a=anomalies[i];if(!a)return;
+  M.setView([a.la,a.ln],15);
+  const ccExtra=a.type==='cc'?`<br>→ 移至 ${a.la2?.toFixed(5)}, ${a.ln2?.toFixed(5)}`:'';
+  popup.setContent(`<div style="font-size:13px"><b>${AICON[a.type]} ${ALABEL[a.type]}</b><br>${a.dn}<br>${a.detail}${ccExtra}<br><small style="color:#888">${!isNaN(a.ts)?fmtT(a.ts):''}</small></div>`).setLatLng([a.la,a.ln]).openOn(M);
+}
+
+function placeAnomMks(){
+  const showAnom=document.getElementById('o-anom').checked;
+  anomalies.forEach(a=>{
+    const mk=L.circleMarker([a.la,a.ln],{radius:9,color:'#fff',fillColor:ACOLORS[a.type],fillOpacity:.95,weight:2});
+    mk.bindTooltip(`${AICON[a.type]} ${ALABEL[a.type]}：${a.detail}`);
+    mk.on('click',()=>focusAnom(anomalies.indexOf(a)));
+    if(showAnom&&visTypes[a.type])M.addLayer(mk);
+    anomMks.push({mk,type:a.type});
+    // 跨縣市：加終點線
+    if(a.type==='cc'&&a.la2){
+      const line=L.polyline([[a.la,a.ln],[a.la2,a.ln2]],{color:'#2ecc71',weight:2,dashArray:'6 4',opacity:.7});
+      if(showAnom)M.addLayer(line);
+      anomMks.push({mk:line,type:'cc'});
+    }
+  });
+}
+function destroyAnom(){anomMks.forEach(({mk})=>{if(M.hasLayer(mk))M.removeLayer(mk);});anomMks=[];}
+function markAnomalyDays(){
+  const ad=new Set(anomalies.filter(a=>!isNaN(a.ts)).map(a=>dKey(new Date(a.ts))));
+  allDates.forEach(d=>{const b=document.getElementById('db-'+d);if(b)b.classList.toggle('anom',ad.has(d));});
+}
+
+// ═══════════════════════════════════════════════════
+// 車輛列表
+// ═══════════════════════════════════════════════════
+function renderVList(){
+  const av=new Set(anomalies.map(a=>a.vk));
+  document.getElementById('vlist').innerHTML=vids.map((vk,i)=>`
+    <div class="vrow" onclick="togVeh('${escJS(vk)}')" style="opacity:${vis[vk]?1:.3}">
+      <div class="vdot" style="background:${COLORS[i%COLORS.length]}"></div>
+      <span class="vname">${curVeh[vk][0]?.dn||vk}</span>
+      ${av.has(vk)?`<span class="vabadge">${anomalies.filter(a=>a.vk===vk).length}</span>`:''}
+      <span class="vbadge">${curVeh[vk].length}</span>
+    </div>`).join('');
+}
+function togVeh(vk){vis[vk]=!vis[vk];redrawAll();document.querySelectorAll('.vrow').forEach((el,i)=>{if(vids[i])el.style.opacity=vis[vids[i]]?1:.3;});}
+
+// ═══════════════════════════════════════════════════
+// 動畫
+// ═══════════════════════════════════════════════════
+function updateFrame(t){
+  tCur=Math.max(tMin,Math.min(tMax,t));
+  const frac=tMax>tMin?(tCur-tMin)/(tMax-tMin):0;
+  document.getElementById('pb-slider').value=Math.round(frac*1000);
+  document.getElementById('pb-fill').style.width=(frac*100).toFixed(2)+'%';
+  document.getElementById('pb-time').textContent=fmtT(tCur);
+  const showDots=document.getElementById('o-dots').checked,showLine=document.getElementById('o-line').checked;
+  const info=[];
+  vids.forEach(vk=>{
+    const l=VL[vk];if(!l||!vis[vk])return;
+    const pts=curVeh[vk];
+    let idx=-1;for(let j=0;j<pts.length;j++){if(!isNaN(pts[j].ts)&&pts[j].ts<=tCur)idx=j;}
+    if(idx<0){if(showLine)l.trail.setLatLngs([]);if(showDots)l.wpMks.forEach(m=>{const el=m.getElement();if(el){const d=el.querySelector('.wp-dot');if(d)d.style.opacity='.15';}});return;}
+    if(showLine)l.trail.setLatLngs(pts.slice(0,idx+1).map(p=>[p.la,p.ln]));
+    let la=pts[idx].la,ln=pts[idx].ln;
+    if(idx+1<pts.length&&!isNaN(pts[idx+1].ts)&&pts[idx+1].ts>pts[idx].ts){const f=(tCur-pts[idx].ts)/(pts[idx+1].ts-pts[idx].ts);la+=f*(pts[idx+1].la-pts[idx].la);ln+=f*(pts[idx+1].ln-pts[idx].ln);}
+    l.movMk.setLatLng([la,ln]);
+    if(showDots)l.wpMks.forEach((m,j)=>{const el=m.getElement();if(el){const d=el.querySelector('.wp-dot');if(d)d.style.opacity=j<=idx?'1':'.15';}});
+    let spd='';if(idx>0&&!isNaN(pts[idx-1].ts)){const dh=(pts[idx].ts-pts[idx-1].ts)/3.6e6,dist=haversine(pts[idx-1].la,pts[idx-1].ln,pts[idx].la,pts[idx].ln);if(dh>0)spd=` ｜ ${Math.round(dist/dh)} km/h`;}
+    info.push(`<div style="margin-bottom:6px"><div style="font-weight:700;color:${l.color}">${l.dn}</div><div style="font-size:11px;color:#444">${la.toFixed(5)}, ${ln.toFixed(5)}</div><div style="font-size:10px;color:#888">${idx+1}/${pts.length}點${spd}</div></div>`);
+  });
+  document.getElementById('curinfo').innerHTML=info.join('')||'<span style="color:#aaa">—</span>';
+}
+function togglePlay(){if(tCur>=tMax)tCur=tMin;playing=!playing;document.getElementById('pb-play').textContent=playing?'⏸':'▶';if(playing){lastT=performance.now();rafId=requestAnimationFrame(step);}else if(rafId){cancelAnimationFrame(rafId);rafId=null;}}
+function step(now){if(!playing)return;const dt=(now-(lastT||now))/1000;lastT=now;tCur+=dt*1000*spMult;if(tCur>=tMax){tCur=tMax;playing=false;document.getElementById('pb-play').textContent='▶';}updateFrame(tCur);if(playing)rafId=requestAnimationFrame(step);}
+function scrub(v){tCur=tMin+(v/1000)*(tMax-tMin);updateFrame(tCur);}
+function resetPlay(){playing=false;if(rafId){cancelAnimationFrame(rafId);rafId=null;}document.getElementById('pb-play').textContent='▶';if(hasTime&&tMax>tMin)updateFrame(tMin);}
+function stopPlay(){playing=false;if(rafId){cancelAnimationFrame(rafId);rafId=null;}}
+
+// ═══════════════════════════════════════════════════
+// 特殊關注點（POI）
+// ═══════════════════════════════════════════════════
+const POI_COLORS=['#ff1744','#aa00ff','#ff6d00'];
+const POI_LABELS=['A','B','C'];
+let poiMarkers=[null,null,null];
+let poiData=[null,null,null];
+
+async function addPoi(idx){
+  const addrEl=document.getElementById(`poi-addr-${idx}`);
+  const labelEl=document.getElementById(`poi-label-${idx}`);
+  const statusEl=document.getElementById(`poi-status-${idx}`);
+  const raw=addrEl.value.trim();
+  if(!raw){statusEl.textContent='請輸入地址或座標';statusEl.className='poi-status err';return;}
+
+  statusEl.textContent='查詢中…';statusEl.className='poi-status loading';
+
+  let la=NaN,ln=NaN,resolvedAddr='';
+
+  // 嘗試座標解析
+  const coordMatch=raw.match(/^(-?\d+\.?\d*)\s*[,，\s]\s*(-?\d+\.?\d*)$/);
+  if(coordMatch){
+    la=parseFloat(coordMatch[1]);ln=parseFloat(coordMatch[2]);
+    if(Math.abs(la)>90&&Math.abs(ln)<=90){[la,ln]=[ln,la];}
+    resolvedAddr=`座標 ${la.toFixed(6)}, ${ln.toFixed(6)}`;
+  } else {
+    // 地址搜尋：多重策略依序嘗試
+    try{
+      const strategies=[
+        raw,                                           // 1. 原始輸入
+        (!/台/.test(raw)?'台灣 ':'')+raw,              // 2. 加台灣前綴
+        raw.replace(/[路街道巷弄號樓之]/g,m=>m+' '),   // 3. 加空格斷詞
+      ];
+      let found=false;
+      for(const q of strategies){
+        if(found)break;
+        const url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=tw&limit=3&accept-language=zh-TW&email=vehicle-trajectory-tool@github.io`;
+        const r=await fetch(url);
+        const d=await r.json();
+        if(d&&d.length>0){
+          la=parseFloat(d[0].lat);ln=parseFloat(d[0].lon);
+          resolvedAddr=d[0].display_name||q;
+          found=true;
+        }
+        if(!found)await new Promise(r=>setTimeout(r,1100)); // Nominatim 限速
+      }
+      // 全部策略都沒找到
+      if(!found){
+        statusEl.innerHTML=`<b>❌ 查無此地址</b><br>研判該地址可能不在台灣<br><small style="color:#888">建議格式：<br>• 「<b>台北市文山區</b>興隆路三段306號」（含縣市區）<br>• 「<b>桃園市桃園區</b>中正路100號」<br>• 或直接輸入座標 <b>25.0478, 121.5170</b></small>`;
+        statusEl.className='poi-status err';
+        return;
+      }
+    }catch(e){
+      statusEl.innerHTML=`❌ 查詢失敗（${e.message||'網路錯誤'}）<br><small style="color:#888">若從本機 file:// 開啟，部分瀏覽器會封鎖網路請求。<br>建議改用座標（如 <b>25.0478, 121.5170</b>），<br>或透過 <code>python -m http.server</code> 開啟此檔案。</small>`;
+      statusEl.className='poi-status err';
+      return;
+    }
+  }
+
+  if(isNaN(la)||isNaN(ln)){statusEl.textContent='❌ 無法解析';statusEl.className='poi-status err';return;}
+
+  const inTW=la>=21.5&&la<=26.5&&ln>=119&&ln<=123;
+  const twNote=inTW?'':'<br><span style="color:#b45309">⚠ 研判該經緯度可能不在台灣</span>';
+
+  const label=labelEl.value.trim()||`關注點 ${POI_LABELS[idx]}`;
+  poiData[idx]={la,ln,label,addr:resolvedAddr};
+
+  if(poiMarkers[idx]){M.removeLayer(poiMarkers[idx]);poiMarkers[idx]=null;}
+
+  // 建立菱形旗幟 Marker
+  const color=POI_COLORS[idx];
+  const letter=POI_LABELS[idx];
+  const shortLabel=label.length>10?label.slice(0,10)+'…':label;
+  const icon=L.divIcon({
+    className:'',iconSize:[24,36],iconAnchor:[12,36],popupAnchor:[0,-36],
+    html:`<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
+      <div style="width:22px;height:22px;background:${color};transform:rotate(45deg);display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)">
+        <div style="transform:rotate(-45deg);color:#fff;font-size:12px;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.4)">${letter}</div>
+      </div>
+      <div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:7px solid ${color};margin-top:-2px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))"></div>
+      <div style="font-size:9px;font-weight:700;background:${color};color:#fff;border-radius:2px;padding:0px 4px;margin-top:1px;white-space:nowrap;max-width:80px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 3px rgba(0,0,0,.25)">${escH(shortLabel)}</div>
+    </div>`
+  });
+
+  const mk=L.marker([la,ln],{icon,zIndexOffset:1000});
+  const fullAddr=resolvedAddr?`<br><small style="color:#888">${resolvedAddr.slice(0,80)}${resolvedAddr.length>80?'…':''}</small>`:'';
+  mk.bindPopup(`<div style="font-size:13px"><b style="color:${color}">⭐ ${escH(label)}</b><br>📍 ${la.toFixed(6)}, ${ln.toFixed(6)}${fullAddr}</div>`,{maxWidth:260});
+  mk.addTo(M);poiMarkers[idx]=mk;
+
+  const shortRes=resolvedAddr.length>35?resolvedAddr.slice(0,35)+'…':resolvedAddr;
+  statusEl.innerHTML=`✅ <b>${la.toFixed(5)}, ${ln.toFixed(5)}</b><br>${escH(shortRes)}${twNote}`;
+  statusEl.className='poi-status ok';
+  M.setView([la,ln],16);
+}
+
+function delPoi(idx){
+  if(poiMarkers[idx]){M.removeLayer(poiMarkers[idx]);poiMarkers[idx]=null;}
+  poiData[idx]=null;
+  document.getElementById(`poi-addr-${idx}`).value='';
+  document.getElementById(`poi-label-${idx}`).value='';
+  document.getElementById(`poi-status-${idx}`).textContent='';
+  document.getElementById(`poi-status-${idx}`).className='poi-status';
+}
+
+function clearAllPoi(){
+  [0,1,2].forEach(i=>delPoi(i));
+}
+
+// ═══════════════════════════════════════════════════
+// 清除（含 POI）
+function clearAll(){
+  stopPlay();destroyLayers();destroyAnom();destroyHotspots();clearAllPoi();
+  rawData=[];cols=[];allVeh={};curVeh={};vids=[];vis={};
+  anomalies=[];allDates=[];selDates=new Set();visTypes={stop:true,gap:true,night:true,cc:true};
+  allStays=[];hotspots=[];
+  ['mapping-panel','playbar'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('file-name').textContent='';document.getElementById('btn-clear').style.display='none';
+  document.getElementById('vlist').innerHTML='';document.getElementById('curinfo').innerHTML='<span style="color:#aaa">—</span>';
+  document.getElementById('alist').innerHTML='';document.getElementById('asum').textContent='';
+  document.getElementById('hs-list').innerHTML='';document.getElementById('hs-summary').textContent='';
+  document.getElementById('daily-stop-wrap').innerHTML='';
+  document.getElementById('day-wrap').innerHTML='';document.getElementById('filter-result').style.display='none';
+  document.getElementById('no-anom').style.display='none';
+  document.getElementById('ttl-anomaly').textContent='⚠️異常';
+  document.getElementById('ttl-hotspot').textContent='🔥熱點';
+  ['stop','gap','night','cc'].forEach(t=>{visTypes[t]=true;const c=document.getElementById('chip-'+t);if(c)c.classList.add('on');});
+  document.getElementById('status').style.display='none';
+}
+
+// ═══════════════════════════════════════════════════
+// 範例資料
+// ═══════════════════════════════════════════════════
+function loadSample(){
+  rawData=[];
+  const trk=[
+    {id:'BUS-101',s:[
+      {la:25.0478,ln:121.5170,t:'2025-01-01T08:02:00'},{la:25.0502,ln:121.5215,t:'2025-01-01T08:07:00'},
+      {la:25.0533,ln:121.5258,t:'2025-01-01T08:12:00'},{la:25.0560,ln:121.5298,t:'2025-01-01T08:17:00'},
+      {la:25.0560,ln:121.5298,t:'2025-01-01T08:55:00'},{la:25.0592,ln:121.5338,t:'2025-01-01T09:02:00'},
+      {la:25.0560,ln:121.5298,t:'2025-01-01T13:10:00'},{la:25.0560,ln:121.5298,t:'2025-01-01T14:30:00'},
+      {la:25.0625,ln:121.5378,t:'2025-01-01T14:35:00'},
+      {la:25.0478,ln:121.5170,t:'2025-01-02T07:30:00'},{la:25.0520,ln:121.5220,t:'2025-01-02T07:35:00'},
+      {la:25.0700,ln:121.5450,t:'2025-01-02T23:50:00'},
+      // 疑似跨縣市（台北→台中, 消失後出現於遠方）
+      {la:25.0478,ln:121.5170,t:'2025-01-03T09:00:00'},{la:24.1477,ln:120.6736,t:'2025-01-03T11:10:00'}
+    ]},
+    {id:'BUS101',s:[{la:25.0481,ln:121.5173,t:'2025-01-01T08:03:00'},{la:25.0505,ln:121.5218,t:'2025-01-01T08:08:00'}]},
+    {id:'TRUCK-03',s:[
+      {la:25.0200,ln:121.4880,t:'2025-01-01T09:00:00'},{la:25.0240,ln:121.4928,t:'2025-01-01T09:05:00'},
+      {la:25.0275,ln:121.4975,t:'2025-01-01T09:10:00'},{la:25.0400,ln:121.5100,t:'2025-01-01T10:00:00'},
+      {la:25.0200,ln:121.4880,t:'2025-01-03T08:00:00'},{la:25.0260,ln:121.4940,t:'2025-01-03T08:05:00'}
+    ]}
+  ];
+  trk.forEach(t=>t.s.forEach(s=>rawData.push({車號:t.id,緯度:s.la,經度:s.ln,時間:s.t})));
+  cols=['車號','緯度','經度','時間'];cmap={lat:'緯度',lng:'經度',vid:'車號',date:'',time:'時間'};
+  document.getElementById('file-name').textContent='範例資料';
+  document.getElementById('btn-clear').style.display='';
+  parseAll();
+}
+
+// ═══════════════════════════════════════════════════
+// 工具函數
+// ═══════════════════════════════════════════════════
+function pCoord(v){if(v==null||v==='')return NaN;return parseFloat(String(v).trim().replace(',','.'));}
+function normVid(s){return String(s).trim().replace(/[-\s]/g,'').toUpperCase();}
+function dKey(d){return`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;}
+function p2(n){return String(n).padStart(2,'0');}
+function fmtT(ts){const d=new Date(ts);return`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;}
+function fmtDur(ms){const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);return h>0?`${h}時${m}分`:`${m}分鐘`;}
+function pTs(v){
+  if(!v&&v!==0)return NaN;const s=String(v).trim();if(!s)return NaN;
+  if(/^\d{13}$/.test(s))return+s;
+  if(/^\d{9,10}$/.test(s))return+s*1000;
+  if(/^\d{5}(\.\d+)?$/.test(s)){const n=+s;if(n>40000&&n<60000)return(n-25569)*86400*1000;}
+  // 民國曆優先判斷（避免被 Date 建構式誤解為西元 1XX 年）
+  let m=s.match(/^(\d{2,3})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[\sT](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if(m&&+m[1]<200&&+m[1]>=1)return new Date(+m[1]+1911,+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),+(m[6]||0)).getTime();
+  // 西元四位數格式
+  m=s.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})(?:[\sT](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),+(m[6]||0)).getTime();
+  // 最後嘗試標準 Date 解析（ISO 8601 等）
+  const d=new Date(s);if(!isNaN(d.getTime()))return d.getTime();
+  return NaN;
+}
+function escA(s){return s.replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escJS(s){return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+</script>
+</body>
+</html>
