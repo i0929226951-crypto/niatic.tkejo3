@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>車型軌跡路線圖</title>
+<title>車行軌跡路線圖</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -187,14 +187,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 /* 側欄收合 */
 #sidebar{transition:width .25s ease}
 #sidebar.collapsed{width:0!important;overflow:hidden;border:none}
-#toggle-btn{position:absolute;top:50%;left:258px;transform:translateY(-50%);z-index:1100;width:20px;height:48px;background:#1b4f72;border:none;border-radius:0 8px 8px 0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;box-shadow:2px 0 6px rgba(0,0,0,.25);transition:left .25s ease}
-#toggle-btn.collapsed{left:0}
-#toggle-btn:hover{background:#154360}
+#toggle-btn{padding:4px 10px;border:1px solid rgba(255,255,255,.4);border-radius:6px;background:rgba(255,255,255,.15);color:#fff;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0;line-height:1}
+#toggle-btn:hover{background:rgba(255,255,255,.3)}
+@media(max-width:600px){#sidebar{width:0!important;overflow:hidden;border:none}}
 </style>
 </head>
 <body>
 <div id="topbar">
-  <h1>🗺 車型軌跡路線圖</h1>
+  <h1>🗺 車行軌跡路線圖</h1>
+  <button id="toggle-btn" onclick="toggleSidebar()" title="收合側欄">☰</button>
   <label class="file-lbl" for="file-input">📂 匯入</label>
   <button class="btn btn-g" onclick="loadSample()">範例</button>
   <button class="btn btn-r" id="btn-clear" onclick="clearAll()" style="display:none">清除</button>
@@ -223,7 +224,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 </div>
 
 <div id="main">
-  <button id="toggle-btn" onclick="toggleSidebar()" title="收合側欄">◀</button>
   <div id="sidebar">
     <div id="tabs">
       <div class="tab on" onclick="showTab('map')">🗺地圖</div>
@@ -342,6 +342,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
         <div class="achip night on" id="chip-night" onclick="togChip('night')">🔵 夜間</div>
         <div class="achip cc on" id="chip-cc" onclick="togChip('cc')">🚗 跨縣市</div>
       </div>
+      <div style="font-size:10px;color:#888;line-height:1.5;margin-bottom:6px;padding:4px 6px;background:#f8f8f8;border-radius:4px">
+        📌 <b>資料缺口</b>：第N筆與第N+1筆紀錄有時間落差，且在不同位置，可能是停留、塞車、上橋等狀況<br>
+        📌 <b>長時停車</b>：第N筆與第N+1筆紀錄有時間落差，但仍在相同位置
+      </div>
       <div id="asum"></div>
       <div id="no-anom">✅ 未偵測到異常</div>
       <div class="alist" id="alist"></div>
@@ -353,7 +357,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
         <h3 style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;margin-bottom:6px">熱點設定</h3>
         <div class="hs-row"><span>停留半徑（公尺）</span><input type="number" id="hs-radius" value="200" min="50" max="1000"></div>
         <div class="hs-row"><span>最短停留（分鐘）</span><input type="number" id="hs-minDur" value="5" min="1" max="60"></div>
-        <div class="hs-row"><span>聚集半徑（公尺）</span><input type="number" id="hs-cluster" value="500" min="100" max="2000"></div>
         <button class="btn btn-g" style="width:100%;margin-top:6px;font-size:11px;padding:5px" onclick="runHotspot()">重新計算熱點</button>
       </div>
       <div id="hs-summary" style="font-size:11px;color:#555;margin-bottom:7px"></div>
@@ -403,10 +406,10 @@ const TILES={
     urls:['https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'],
     attr:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',label:'OSM'},
   carto:{
-    urls:['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    urls:['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
           'https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
-          'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
-    attr:'© Esri / CARTO',label:'淺色底圖'}
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
+    attr:'© CARTO / Esri',label:'淺色底圖'}
 };
 const COLORS=['#1565C0','#2E7D32','#C62828','#E65100','#6A1B9A','#00695C','#AD1457','#283593','#827717','#4E342E'];
 const ACOLORS={stop:'#f59e0b',gap:'#7c3aed',night:'#0288d1',cc:'#2ecc71'};
@@ -951,7 +954,7 @@ function runHotspot(){
   if(!vids.length){document.getElementById('hs-summary').textContent='';document.getElementById('hs-list').innerHTML='';document.getElementById('daily-stop-wrap').innerHTML='';return;}
   const radiusM=parseInt(document.getElementById('hs-radius').value)||200;
   const minMs=(parseInt(document.getElementById('hs-minDur').value)||5)*60000;
-  const clRadiusM=parseInt(document.getElementById('hs-cluster').value)||500;
+  const clRadiusM=500;
   allStays=vids.flatMap(vk=>detectStays(curVeh[vk],radiusM,minMs));
   hotspots=clusterStays(allStays,clRadiusM);
   renderHotspotMarkers();
@@ -1365,12 +1368,16 @@ function toggleSidebar(){
   const sb=document.getElementById('sidebar');
   const btn=document.getElementById('toggle-btn');
   const collapsed=sb.classList.toggle('collapsed');
-  btn.classList.toggle('collapsed',collapsed);
-  btn.textContent=collapsed?'▶':'◀';
   btn.title=collapsed?'展開側欄':'收合側欄';
-  // 讓地圖重新計算尺寸
   setTimeout(()=>{if(M)M.invalidateSize();},280);
 }
+
+// 手機預設收合
+document.addEventListener('DOMContentLoaded',()=>{
+  if(window.innerWidth<=600){
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+});
 </script>
 </body>
 </html>
